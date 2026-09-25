@@ -1,76 +1,46 @@
 ---
-name: plan-generator
-description: Use this skill whenever the user wants to plan a feature, break a task into implementation steps, or asks for a spec/roadmap before writing code — e.g. "plan out how to add X", "I need a spec for Y before we touch it", "break this down into steps", "let's think through the approach before coding", "I don't want to just jump into this, let's figure out the steps first". Produces a single markdown plan file (spec, phased roadmap, checkbox tasks, explicit verification gates) meant to be handed off to execution later, by a human or by the plan-executor skill. Prefer this over jumping straight into code whenever the task is non-trivial. Not for reviewing or critiquing a plan the user already wrote (just discuss it directly), and not for non-coding planning (schedules, business strategy, go-to-market) — this is specifically for software implementation plans.
+name: plan-executor
+description: >-
+  Use this skill whenever the user wants to execute, implement, or work through an existing *markdown* plan file with checkbox tasks and gates — e.g. "execute this plan", "let's start implementing plan-refund-handling.md", "work through the roadmap we made", "continue the plan from where we left off", "implement phase 2, phase 1's gate already passed". Expects the plan-generator format — phases, `- [ ]` checkbox tasks, and `**Gate:**` verification lines (handwritten plans in the same shape also work). Walks phases in order, checks off tasks, and actually verifies each gate before continuing. Not for planning itself (use plan-generator if no plan file exists yet), not for reviewing/critiquing a plan without executing it, and not for non-software plans (infra rollout stages, deployment plans not in this markdown checkbox format) — ask the user to confirm the artifact if it's unclear whether it matches this shape.
 license: MIT
 metadata:
-  pairs_with: plan-executor
-  output_type: markdown-plan
+  pairs_with: plan-generator
+  input_type: markdown-plan
   contract_version: "1"
 ---
 
-# Plan Generator
+# Plan Executor
 
 ## When to use me
 
-Trigger on: a request to plan, spec, scope, or roadmap a non-trivial coding task before implementation starts. Also trigger on intent without keywords — "let's think this through before coding", "I don't want to just start typing" — not just literal matches to "plan" or "spec".
+Trigger on: a request to execute, implement, resume, or continue a plan that already exists as a markdown checkbox file — with or without a filename given.
 
-Do NOT trigger on: reviewing/critiquing a plan that already exists (discuss it directly instead), non-software planning (schedules, business strategy, go-to-market), or trivial single-step tasks that don't warrant the overhead.
+Do NOT trigger on: implementation requests that explicitly skip planning ("just do it directly, no plan doc"), explaining/walking-through requests with no plan file involved, reviewing a plan without executing it, or plans belonging to a different domain/format (e.g. an infra rollout stage list that isn't in this checkbox+gate markdown shape — confirm the format with the user rather than assuming).
 
 ## Why this exists
 
-Code written straight from a request tends to encode a misunderstanding early, and that misunderstanding compounds — by the time it surfaces, there's a pile of code built on top of it. A short planning pass up front is cheap; discovering the wrong approach after three files are written is not.
+A plan only earns its keep if execution actually respects it. The main failure mode this skill guards against is silent drift: skipping ahead past a phase that didn't really finish, or treating a gate as a formality instead of an actual checkpoint. Slower, verified progress beats fast progress that quietly breaks phase 2 while working on phase 4.
 
-The output of this skill is a real artifact, not a paragraph that evaporates: a markdown file the user can read, edit, and hand back — including to `plan-executor`, which parses the exact structure defined below. Don't drift from that structure; it's a contract, not a suggestion.
+## Expected input
 
-## Process (do these in order)
+A markdown file matching the `plan-generator` contract: phases, `- [ ]` tasks, ending in `- [ ] **Gate:** ...`. If the plan given isn't in this shape — no checkboxes, no gates, just prose — don't force it. Either help reformat it into checkboxes first, or execute more loosely while telling the user the gate discipline below doesn't fully apply.
 
-Don't skip to the roadmap. The roadmap is only as good as the spec underneath it.
+## Process
 
-### 1. Spec
-State, in plain prose (a few sentences to a short paragraph — this is a shared-understanding check, not a requirements doc):
-- The concrete goal: what works when this is done
-- Explicit assumptions: anything inferred rather than told, named so the user can correct it before it's baked into ten steps
-- What's out of scope, if that's ambiguous
+Work through phases **in order**. Batch small, obviously-related tasks if useful, but never cross a gate without checking it.
 
-If the request is ambiguous in a way that would change the roadmap (not a cosmetic detail), ask before writing the plan. Don't guess and silently encode the guess as fact in the spec.
+1. **Read the whole plan first.** Don't start phase 1 blind — later phases may inform how earlier ones should be built (e.g. phase 3 needs a specific interface, so build phase 1 to support it).
+2. **Take the next unchecked task**, do the work, flip its box to `- [x]` in the plan file as you go. This keeps the file an accurate, live progress record — useful if the session is interrupted and resumes later.
+3. **At a gate, actually verify the stated condition** — run the tests, hit the endpoint, check the migration. Never mark a gate `[x]` on the assumption that the preceding tasks probably worked.
+4. **On gate failure:**
+   - Attempt one fix, using what you know about why it failed. Worth doing — many failures are small (typo, missed import, off-by-one) and not worth interrupting the user for.
+   - Re-run the same verification.
+   - Passes now → mark `[x]`, continue normally.
+   - Still fails → **stop and tell the user**: what failed, what you tried, why the retry didn't fix it. Do not attempt a second autonomous fix — a failure surviving one informed retry is telling you something about the plan or approach, not just a typo, and that's worth a human's judgment.
+5. **If the plan itself turns out to be wrong** mid-execution (a phase's premise is false, a task no longer makes sense given what's been learned) — stop and flag it. Don't push through or silently reinterpret the plan out from under the user.
 
-### 2. Roadmap
-Break the spec into phases. A phase is a coherent chunk of work ending in something checkable, not an arbitrary chop of a to-do list.
-- Order phases so later ones depend on earlier ones actually working — don't front-load risk to the end
-- Prefer more, smaller phases when there's real uncertainty — a wrong turn gets caught sooner
-- A trivial task doesn't need multiple phases — one phase with a handful of tasks is fine
+## Definition of done
 
-### 3. Verification gates
-Every phase ends with at least one gate: a concrete, checkable pass/fail condition — "existing tests pass", "endpoint returns 201 with a valid payload", "migration runs cleanly on a fresh DB". Not "review the code" — that isn't checkable. If a gate can't be stated concretely, the phase is probably too vague and needs breaking down further.
+Every checkbox in the file is `- [x]`, gates included. If execution stops partway (gate failure, session end), leave the file exactly as-is — accurate checkbox state is the resumption point, not something to summarize separately elsewhere.
 
-Gates are what let `plan-executor` (or a human) know it's safe to move forward, instead of discovering three phases later that phase 2 was silently broken.
-
-## Output contract
-
-Write ONE markdown file with this exact structure. This is machine-parsed by `plan-executor` — do not reformat, rename the gate marker, or use a different checkbox syntax.
-
-```markdown
-# Plan: <short title>
-
-## Spec
-<goal, assumptions, out-of-scope — prose>
-
-## Phase 1: <name>
-- [ ] <concrete task>
-- [ ] <concrete task>
-- [ ] **Gate:** <checkable condition>
-
-## Phase 2: <name>
-- [ ] <concrete task>
-- [ ] **Gate:** <checkable condition>
-```
-
-Format rules:
-- `- [ ]` for every task, including the gate — this is what makes progress trackable and lets execution flip boxes to `- [x]`
-- `**Gate:**` prefix, always the last checkbox in its phase
-- A phase may have more than one gate only if there are genuinely two independent conditions — don't split one condition into two just to pad the list
-- File name: descriptive (`plan-refund-handling.md`), not generic (`plan.md`), whenever the user might have more than one plan around
-
-## After writing
-
-Don't just report "done." Briefly walk the user through the phases and confirm the breakdown and gates look right before treating the plan as final — that confirmation is the point of writing it down instead of just starting to code.
+On finishing a phase, a short one-line note to the user is worth it before moving on — not a full stop-and-ask, just enough that they're not surprised by how far execution has gone if they check back in.
