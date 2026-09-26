@@ -1,75 +1,88 @@
 ---
 name: atomic-commit
-description: "Atomic git commits: one file per commit using conventional commits. Triggers: /atomic-commit, atomic commit, commit atomically, one file per commit.lightweight alternative to commit-review (no review loop)."
+description: |-
+  Split staged/unstaged git changes into one Conventional Commit per file, for any git repo (single-package or monorepo). Self-installs its helper script on first use.
+  Examples:
+  - user: "commit this" → stage and commit each changed file separately
+  - user: "atomic commit" / "commit atomically" → run the one-file-per-commit workflow
+  - user: "split my changes into separate commits" → same workflow
+  Do NOT use when the user wants a single combined commit, or wants to review/approve the diff first.
 ---
 
 # atomic-commit: One File Per Commit
 
-Lightweight atomic commit workflow. No review loop — just stage, verify, commit.
-
-## When to Use
-
-- User says "commit", "commit this", "commit all", "atomic commit"
-- Multiple files changed and each needs its own commit
-- Quick commit without full review cycle
+One commit per changed file, each with its own Conventional Commits message.
+No review loop — stage, verify, commit.
 
 ## When NOT to Use
 
-- User wants review before commit → use `commit-review` instead
+- User wants to review the diff before committing → use `commit-review` if available
+- The changes are one indivisible logical unit (e.g. a rename touching an
+  interface and all callers) → say so and propose a single commit instead
 
-## Procedure
-
-### Step 1: Check Git State
+## Step 0: Ensure the Helper Script Exists
 
 ```bash
+SCRIPT="scripts/atomic-commits.sh"   # relative to this skill's own directory
+```
+
+- Exists → use it, go to Step 1.
+- Missing → write it verbatim from `references/atomic-commits.sh.md`,
+  `chmod +x` it, continue.
+- Neither available → fall back to manual `git add -- <file> && git commit
+-m "<msg>"` per file, verifying `git diff --cached --name-only` shows
+  exactly one file each time.
+
+## Step 1: Check Git State
+
+```bash
+git rev-parse --is-inside-work-tree
 git status --short
-git diff --name-only
-git ls-files --others --exclude-standard
 ```
 
-If NO uncommitted changes → report "Nothing to commit" and stop.
+No changes → report "Nothing to commit" and stop.
 
-### Step 2: Read Changed Files
+## Step 2: Read Changed Files
 
-Read every changed file to understand the changes and write good commit messages.
+Read each changed file. Write specific messages — not "update file".
 
-### Step 3: Build Commits File
+## Step 3: Decide Scope
 
-Create `/tmp/atomic-commits.txt` with format:
+| Repo shape                                   | Scope                                                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Single-package repo                          | Usually none: `fix: handle null input`. Or a module name if boundaries are clear: `fix(auth): ...` |
+| Monorepo (`apps/`, `packages/`, `services/`) | The app/package folder name: `feat(dashboard): ...`                                                |
+| Ambiguous                                    | Ask once, or default to no scope — never invent a scope                                            |
 
-```
-path/to/file:type(scope): commit message
-```
+Types: `feat fix docs style refactor test chore perf ci build`
 
-**Commit types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`
+## Step 4: Build Commits File
 
-**Scope**: Project name from file path (e.g., `api`, `dashboard`, `scaem`, `carnets`)
-
-**Rules**:
-
-- ONE file per line
-- ONE commit per file
-- Descriptive message following Conventional Commits
-
-### Step 4: Run Atomic Commits Script
+Tab-separated (not colon — messages often contain colons):
 
 ```bash
-bash .opencode/scripts/atomic-commits.sh /tmp/atomic-commits.txt
+printf 'path/to/file\ttype(scope): message\n' >> /tmp/atomic-commits.txt
 ```
 
-The script enforces:
+## Step 5: Run
 
-- Exactly 1 file staged per commit
-- Aborts all if verification fails
-- Cleans up after itself
+```bash
+bash "$SCRIPT" /tmp/atomic-commits.txt
+```
 
-### Step 5: Report Results
+Enforces one file staged per commit; aborts and unstages cleanly on any
+mismatch; runs from repo root regardless of caller's cwd.
 
-List each commit hash and message. Confirm all files committed.
+## Step 6: Report
 
-## Key Principles
+`git log --oneline -n <count>`. Confirm all files committed. Remove
+`/tmp/atomic-commits.txt`.
 
-1. **One file per commit** — no exceptions
-2. **Conventional Commits** — `type(scope): message`
-3. **No review loop** — this is the fast path
-4. **Script enforcement** — atomic-commits.sh validates staging
+## Bundled Resources
+
+```
+atomic-commit/
+├── SKILL.md
+├── scripts/atomic-commits.sh        # enforcement script
+└── references/atomic-commits.sh.md  # fallback copy for self-install
+```
