@@ -20,18 +20,37 @@ No review loop — stage, verify, commit.
 - The changes are one indivisible logical unit (e.g. a rename touching an
   interface and all callers) → say so and propose a single commit instead
 
-## Step 0: Ensure the Helper Script Exists
+## Step 0: Locate (or Recreate) the Helper Script
 
-```bash
-SCRIPT="scripts/atomic-commits.sh"   # relative to this skill's own directory
-```
+The script is not always beside this `SKILL.md`. When the skill is installed
+with `npx skills add`, it typically lives under `~/.agents/skills/...` (rather
+than `~/.config/opencode/...`), so resolve its real path first instead of
+assuming a fixed location.
 
-- Exists → use it, go to Step 1.
-- Missing → write it verbatim from `references/atomic-commits.sh.md`,
-  `chmod +x` it, continue.
-- Neither available → fall back to manual `git add -- <file> && git commit
--m "<msg>"` per file, verifying `git diff --cached --name-only` shows
-  exactly one file each time.
+1. Prefer the copy next to this skill's own directory:
+
+   ```bash
+   SCRIPT="scripts/atomic-commits.sh"   # relative to this skill's own directory
+   ```
+
+2. If that doesn't resolve to a real file, find the installed copy:
+
+   ```bash
+   find ~ -name atomic-commits.sh 2>/dev/null
+   ```
+
+   Use the first match — commonly
+   `~/.agents/skills/atomic-commit/scripts/atomic-commits.sh` for
+   `npx skills add` installs. Set `SCRIPT` to that absolute path.
+
+3. Only if no copy exists anywhere, recreate it verbatim from
+   `references/atomic-commits.sh.md`, `chmod +x` it, and use it.
+
+4. If neither a found copy nor the reference file is available, fall back to
+   manual `git add -- <file> && git commit -m "<msg>"` per file, verifying
+   `git diff --cached --name-only` shows exactly one file each time.
+
+Once `SCRIPT` points at a real, executable file, continue to Step 1.
 
 ## Step 1: Check Git State
 
