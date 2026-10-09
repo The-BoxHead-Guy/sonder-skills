@@ -1,0 +1,24 @@
+{
+  "skill_name": "vitest-testing-expert",
+  "description": "Evals for Vitest testing expert skill covering component, hook, service, and E2E testing scenarios",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write a vitest test for a React Counter component. It should render with initial count 0, increment on button click, and display the current count.",
+      "expected_output": "A vitest test file using @testing-library/react with render, screen.getByRole, userEvent.click, and expect().toBeInTheDocument() assertions. Uses describe/it blocks. Tests: renders with initial count 0, increments on click.",
+      "files": ["src/components/Counter.test.tsx"]
+    },
+    {
+      "id": 2,
+      "prompt": "I need to test a custom hook called useDebounce that takes a value and delay. The hook should return the debounced value after the delay. Write vitest tests using fake timers.",
+      "expected_output": "A vitest test using renderHook from @testing-library/react, vi.useFakeTimers()/vi.useRealTimers(), vi.advanceTimersByTime(). Tests: returns initial value immediately, updates after delay, cancels previous timer on new value.",
+      "files": ["src/hooks/useDebounce.test.ts"]
+    },
+    {
+      "id": 3,
+      "prompt": "Write a vitest test for an API service module that calls fetch('/api/users') and returns JSON. Mock the global fetch function and test both success and error responses.",
+      "expected_output": "A vitest test using vi.stubGlobal('fetch', ...) or vi.mock() for fetch. Tests: returns parsed users on 200, throws error on 500, handles network failure gracefully. Uses async/await with mockResolvedValue/mockRejectedValue.",
+      "files": ["src/services/__tests__/api.test.ts"]
+    }
+  ]
+}

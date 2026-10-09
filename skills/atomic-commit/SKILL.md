@@ -1,18 +1,34 @@
 ---
 name: atomic-commit
 description: |-
-  Split staged/unstaged git changes into one Conventional Commit per file, for any git repo (single-package or monorepo). Self-installs its helper script on first use.
+  MANDATORY for every commit. Split every git change into one Conventional Commit per file, for any git repo (single-package or monorepo). Never hand-group, never bulk-commit, never run one `git commit` across multiple files. Self-installs its helper script on first use.
+  Triggers on ANY commit intent, even implicit: "commit", "commit this", "commit the changes", "atomic commit", "split my changes", "save this", or finishing work that should be committed.
   Examples:
   - user: "commit this" → stage and commit each changed file separately
   - user: "atomic commit" / "commit atomically" → run the one-file-per-commit workflow
   - user: "split my changes into separate commits" → same workflow
-  Do NOT use when the user wants a single combined commit, or wants to review/approve the diff first.
+  Only an explicit opt-out in the current turn ("one commit", "combine these files", "let me review the diff first") allows a multi-file commit; otherwise one file per commit is non-negotiable.
 ---
 
 # atomic-commit: One File Per Commit
 
 One commit per changed file, each with its own Conventional Commits message.
 No review loop — stage, verify, commit.
+
+## Non-negotiable (read first)
+
+- **Exactly one file per commit.** No exceptions unless the user explicitly opts out in this turn.
+- **Never** `git add -A` / `git add .` / `git commit -am` followed by one commit over many files.
+- **Never** hand-group files into "logical" commits. If your commit message covers more than one path, you are doing it wrong — run this skill's script.
+- **Always verify before reporting done:** every new commit must show exactly one file.
+  ```bash
+  for c in $(git rev-list origin/main..HEAD); do
+    printf '%s files=%s %s\n' "$(git rev-parse --short "$c")" \
+      "$(git show --name-only --format='' "$c" | grep -c .)" "$(git log -1 --format=%s "$c")"
+  done
+  ```
+  Every `files=` must be `1`. If any is greater, stop and re-split (`git reset --soft <base>` then redo) — do not report success.
+- A single indivisible change (e.g. one rename across an interface and all callers) is the only defensible multi-file commit: state why, ask first, and never extend that exception to unrelated files.
 
 ## When NOT to Use
 
