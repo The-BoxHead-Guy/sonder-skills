@@ -1,0 +1,29 @@
+# AGENTS.md
+
+Guidance for agents working in this repository (`sonder-skills`).
+
+## Commits — use `atomic-commits`, without exception
+
+All commits follow the `skills/atomic-commits` skill. No exceptions:
+
+- **One file per commit.** Never `git add .` / `git add -A` / `git add <dir>/`,
+  and never group two or more files in a single commit.
+- **Conventional Commit messages:** `type(scope): imperative lowercase description`,
+  at most 72 characters.
+- **Two or more files:** batch with the bundled script instead of committing by hand:
+
+  ```bash
+  cat > /tmp/commits.txt << 'EOF'
+  path/to/file:type(scope): message
+  EOF
+  bash skills/atomic-commits/atomic-commits.sh /tmp/commits.txt
+  ```
+
+- **No** co-author/attribution footers, and **no** `[skip ci]` unless explicitly asked
+  in that request.
+
+## Skills and upstream sync
+
+- Upstream skills are tracked in `.skill-lock.json`; refresh them with
+  `npx skills update` (see `SYNC.md`).
+- Locally-authored skills live alongside upstream ones under `skills/`.
